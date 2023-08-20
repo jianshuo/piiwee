@@ -114,3 +114,42 @@ This leverage backrefs of Peewee to build connections between objects. For examp
 ### POST /{kind}/{id}
 
 Update the object. Permission control is enforced
+
+## See it in ACTION!
+
+Here is a demo page with sample data from https://www.mysqltutorial.org/mysql-sample-database.aspx.
+You can try these URLs:
+
+All employees:
+
+http://118.25.3.97:8000/employees
+
+Please pay attention to the result, `email`, `extension`, `office_code` and `reports_to` are
+not displayed, since they are configured to be only readable to owner, not other (the
+default role).
+
+http://118.25.3.97:8000/employees?user=1002
+
+Different system will use different way to authenticate user. I just use a fake parameter
+to simulate a user system. The `user` parameter tells the user accessing the page has `user_id` of `1002` (you need
+to implement how to authenticate users yourself.) Pay attention to the result with id `1002`:
+The fields hidden to others are displayed.
+
+http://118.25.3.97:8000/employees?fields=employee_number,last_name&filter=employee_number%3E1200+and+office_code==3
+
+Pay attention to the `filter` and `fields` selection
+
+http://118.25.3.97:8000/employees?sort=-employee_number
+
+This shows `sorting`
+
+http://118.25.3.97:8000/offices/3/employees
+
+List all `employees` in `office` with `code 3`
+
+http://118.25.3.97:8000/orders
+
+Since model permission for orders is set to be `0o600`, so annonymous user cannot read it
+
+For all the links, try to visit it multiple times (change the ID to avoid already cached keys),
+and feel the following visit should be much faster than the first time.

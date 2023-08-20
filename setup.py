@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name="piiwee",
-    version="0.2",
+    version="0.3",
     license="MIT",
     author="Jianshuo Wang",
     author_email="jianshuo@hotmail.com",

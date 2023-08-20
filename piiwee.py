@@ -22,7 +22,6 @@ __author__ = "Jianshuo Wang"
 __copyright__ = "Copyright 2023, Baixing.com"
 __credits__ = ["Jianshuo Wang", "Chato Development Team"]
 __license__ = "MIT"
-__version__ = "0.2"
 __maintainer__ = "Jianshuo Wang"
 __email__ = "jianshuo@hotmail.com"
 __status__ = "Production"
@@ -330,7 +329,7 @@ class Cache:
         cls._store = store
 
     @classmethod
-    def get_key(cls, key: str, sub_keys: dict = None):
+    def get_key(cls, key: str, sub_keys: dict = None) -> str:
         """Get the key for the cache. It is the class name, the key,
         and the sub keys.
 
@@ -433,7 +432,10 @@ class Cache:
             raw_key (bool, optional): whether the key is raw key
             or needs to be prefixed by get_key() . Defaults to False.
         """
-        cls._store.delete(*[key if raw_key else cls.get_key(key) for key in keys])
+        raw_keys = [key if raw_key else cls.get_key(key) for key in keys]
+        for key in raw_keys:
+            logger.debug(f"Cache DELETED {key}")
+        cls._store.delete(*raw_keys)
 
 
 class CachedModelSelect(ModelSelect, Cache):
@@ -530,7 +532,7 @@ class CachedModel(Model, Cache):
         just cleared all the possible combination to be safe - the clear
         operation is cheap in Redis anyway.
         """
-        yield self.get_key(self.id),
+        yield self.get_key(self.id)
         for keys in all_combinations(field_names(self.index_fields())):
             yield CachedModelSelect.get_key(
                 self.__class__.__name__, getattrs(self, keys)

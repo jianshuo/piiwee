@@ -51,7 +51,7 @@ class Offices(BaseModel):
 class Employees(BaseModel):
     email = CharField(_hidden=0o400)
     employee_number = AutoField(column_name="employeeNumber")
-    extension = CharField()
+    extension = CharField(_hidden=0o600)
     first_name = CharField(column_name="firstName")
     job_title = CharField(column_name="jobTitle")
     last_name = CharField(column_name="lastName")
@@ -60,6 +60,7 @@ class Employees(BaseModel):
         field="office_code",
         model=Offices,
         backref="employees",
+        _hidden=0o600,
     )
     reports_to = ForeignKeyField(
         column_name="reportsTo",
@@ -67,6 +68,7 @@ class Employees(BaseModel):
         model="self",
         null=True,
         backref="subordinates",
+        _hidden=0o400,
     )
 
     class Meta:
@@ -121,6 +123,7 @@ class Orders(BaseModel):
 
     class Meta:
         table_name = "orders"
+        permission = 0o600
 
 
 class Productlines(BaseModel):
