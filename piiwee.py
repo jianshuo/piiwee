@@ -14,7 +14,7 @@ import pickle
 import random
 from functools import partialmethod, reduce
 from itertools import combinations
-from typing import List, Union, Dict
+from typing import Dict, List, Union
 
 from peewee import OP, Expression, Field, Model, ModelSelect
 
@@ -54,7 +54,7 @@ def expr(exp: Union[ast.AST, Expression, str], model: Model) -> Expression:
     I am surprised that no one actually created this function.
 
     >>> from peewee import CharField, IntegerField
-    >>> class User(Model):
+    >>> class User(BaseModel):
     ...     name = CharField()
     ...     age = IntegerField()
     >>> expr("name == 'John' and age > 18", User)  # doctest: +ELLIPSIS
@@ -133,7 +133,7 @@ def field_eq(
     and field = a will return "1".
 
     >>> from peewee import CharField, IntegerField
-    >>> class User(Model):
+    >>> class User(BaseModel):
     ...     name = CharField()
     ...     age = IntegerField()
     >>> field_eq(Expression(User.name, "=", "John"), "name")
@@ -166,7 +166,7 @@ def field_names(fields: List[Union[Field, str]]) -> List[str]:
     ['a', 'b']
 
     >>> from peewee import CharField, IntegerField
-    >>> class User(Model):
+    >>> class User(BaseModel):
     ...     name = CharField()
     ...     age = IntegerField()
     >>> field_names([User.name, User.age])
@@ -263,9 +263,7 @@ def getattrs(obj: Union[dict, object, Expression], names: List[str]) -> dict:
         return {name: obj.get(name) for name in names if name in obj}
     if isinstance(obj, Expression):
         return {name: field_eq(obj, name) for name in names if field_eq(obj, name)}
-    if isinstance(obj, object):
-        return {name: getattr(obj, name) for name in names if hasattr(obj, name)}
-    return {}
+    return {name: getattr(obj, name) for name in names if hasattr(obj, name)}
 
 
 class MemoryStore(dict):
@@ -450,7 +448,7 @@ class CachedModelSelect(ModelSelect, Cache):
         is "User.id == 1", the cache key is "Cache:User:id=1", and the cache
         tag is the md5 of the whole SQL text.
 
-        Please is a sample Cache Key, and Tag:
+        Following is a sample Cache Key, and Tag:
 
         Key: CachedModelSelect:ChatoDomain:creator=3
         Tag: 65702969e839a655eeaea0e89243efe9
@@ -463,23 +461,15 @@ class CachedModelSelect(ModelSelect, Cache):
         yield from self.get_cache(
             key=self._from_list[0].__name__,
             sub_keys=getattrs(self._where, field_names(self.model.index_fields())),
-            tag=md5(self.sql_text()),
+            tag=md5(str(self)),
             func=lambda: list(super(ModelSelect, self).__iter__()),
         )
 
-    def sql_text(self) -> str:
-        """The SQL text of the SELECT query.
-
-        Returns:
-            str: the SQL text
-        """
-        t, d = self.sql()
-        return t % tuple(d)
-
     def _call(self, func: str, *expressions):
         """Pass the arguments to the function, and return the result.
-        Before doing that, make sure the expression is a tuple, and
-        only call the function if the first expression is not None."""
+        Only call the function if the first expression is not None.
+        Before calling the function, make sure the expression is a tuple.
+        """
 
         if expressions and expressions[0] is not None:
             if isinstance(expressions[0], str):
@@ -570,13 +560,13 @@ class PermissionedModel(Model):
 
     The model permission is defined as "permission" in Meta class.
 
-    class User(Model):
+    class User(BaseModel):
         class Meta:
             permission = 0o606
 
     The field permission is defined as "_hidden" in Field class:
 
-    class User(Model):
+    class User(BaseModel):
         name = CharField(max_length=100, _hidden=0o604)
         mobile = CharField(max_length=100, _hidden=0o600)
         role = CharField(max_length=100, _hidden=0o404)
@@ -627,7 +617,7 @@ class PermissionedModel(Model):
                 to read/write.
 
         >>> from peewee import CharField
-        >>> class User(Model):
+        >>> class User(BaseModel):
         ...     name = CharField(max_length=100, _hidden=0o604)
         ...     mobile = CharField(max_length=100, _hidden=0o600)
         ...     role = CharField(max_length=100, _hidden=0o404)
@@ -653,7 +643,7 @@ class PermissionedModel(Model):
             Dict[Field, int]: a dict of fields and their permission
 
         >>> from peewee import CharField
-        >>> class User(Model):
+        >>> class User(BaseModel):
         ...     name = CharField(max_length=100, _hidden=0o604)
         ...     mobile = CharField(max_length=100, _hidden=0o600)
         ...     role = CharField(max_length=100, _hidden=0o404)
@@ -676,7 +666,7 @@ class PermissionedModel(Model):
             _type_: the permission of the field
 
         >>> from peewee import CharField
-        >>> class User(Model):
+        >>> class User(BaseModel):
         ...     name = CharField(max_length=100, _hidden=0o604)
         ...     mobile = CharField(max_length=100, _hidden=0o600)
         ...     role = CharField(max_length=100, _hidden=0o404)
@@ -695,7 +685,7 @@ class PermissionedModel(Model):
         """Returns the permission of the model.
 
         >>> from peewee import CharField
-        >>> class User(Model):
+        >>> class User(BaseModel):
         ...     class Meta:
         ...         permission = 0o604
         >>> oct(User().model_perm())
@@ -703,6 +693,28 @@ class PermissionedModel(Model):
         """
 
         return getattr(cls._meta, "permission", cls.default_model_permission)
+
+    def readable_fields(self, user_id: int = 0) -> List[Field]:
+        """Get a list of readable fields for the current user
+
+        Args:
+            user_id (int, optional): User ID. Defaults to 0.
+
+        Returns:
+            List[Field]: a list of readable fields for the current user
+        """
+        return self.fields(0o444, self.get_role(user_id))
+
+    def writable_fields(self, user_id: int = 0) -> List[Field]:
+        """Get a list of writable fields for the current user
+
+        Args:
+            user_id (int, optional): User ID. Defaults to 0.
+
+        Returns:
+            List[Fields]: a list of writable fields for the current user
+        """
+        return self.fields(0o222, self.get_role(user_id))
 
     def to_dict(
         self,
@@ -726,7 +738,7 @@ class PermissionedModel(Model):
 
 
         >>> from peewee import CharField
-        >>> class User(Model):
+        >>> class User(BaseModel):
         ...     name = CharField(max_length=100, _hidden=0o604)
         ...     mobile = CharField(max_length=100, _hidden=0o600)
         ...     role = CharField(max_length=100, _hidden=0o404)
@@ -748,10 +760,9 @@ class PermissionedModel(Model):
         >>> user.to_dict(user_id=0, exclude=["name"])
         {'role': 'user'}
         """
-        readable_fields = field_names(self.fields(0o444, self.get_role(user_id)))
         readable_fields = [
             field
-            for field in readable_fields
+            for field in field_names(self.readable_fields())
             if (only is None or not any(only) or field in field_names(only))
             and (exclude is None or field not in field_names(exclude))
         ]
@@ -776,7 +787,7 @@ class PermissionedModel(Model):
             PermissionedModel: the updated model
 
         >>> from peewee import CharField
-        >>> class User(Model):
+        >>> class User(BaseModel):
         ...     name = CharField(max_length=100, _hidden=0o604)
         ...     mobile = CharField(max_length=100, _hidden=0o600)
         ...     role = CharField(max_length=100, _hidden=0o404)
@@ -793,11 +804,9 @@ class PermissionedModel(Model):
         ...
         PermissionError: Field name is not writable for user 1
 
-
         """
-        writable_fields = self.fields(0o222, self.get_role(user_id))
         for key, value in items.items():
-            if key in field_names(writable_fields):
+            if key in field_names(self.writable_fields()):
                 setattr(self, key, value)
             else:
                 raise PermissionError(f"Field {key} is not writable for user {user_id}")
