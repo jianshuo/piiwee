@@ -522,7 +522,7 @@ class CachedModel(Model, Cache):
         just cleared all the possible combination to be safe - the clear
         operation is cheap in Redis anyway.
         """
-        yield self.get_key(self.id)
+        yield self.get_key(self.get_id())
         for keys in all_combinations(field_names(self.index_fields())):
             yield CachedModelSelect.get_key(
                 self.__class__.__name__, getattrs(self, keys)
@@ -762,7 +762,7 @@ class PermissionedModel(Model):
         """
         readable_fields = [
             field
-            for field in field_names(self.readable_fields())
+            for field in field_names(self.readable_fields(user_id))
             if (only is None or not any(only) or field in field_names(only))
             and (exclude is None or field not in field_names(exclude))
         ]
@@ -806,10 +806,13 @@ class PermissionedModel(Model):
 
         """
         for key, value in items.items():
-            if key in field_names(self.writable_fields()):
+            if key in field_names(self.writable_fields(user_id)):
                 setattr(self, key, value)
             else:
-                raise PermissionError(f"Field {key} is not writable for user {user_id}")
+                raise PermissionError(
+                    f"Field {key} is not writable for user "
+                    f"{user_id} (role {oct(self.get_role(user_id))})"
+                )
         return self
 
 
