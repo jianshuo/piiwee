@@ -132,6 +132,9 @@ def field_eq(
     For example, expression reprsentation of "a = 1 AND b = 2",
     and field = a will return "1".
 
+    If there is OR in the expression, or the expression is not
+    "=", like "a > 1", then None will be returned.
+
     >>> from peewee import CharField, IntegerField
     >>> class User(BaseModel):
     ...     name = CharField()
@@ -154,8 +157,8 @@ def field_eq(
     if isinstance(exp, Expression):
         if exp.op == "AND":
             return field_eq(exp.lhs, field) or field_eq(exp.rhs, field)
-        if exp.op == "=":
-            return exp.rhs if exp.lhs.name in field_names([field])[0] else None
+        if exp.op == "=" and exp.lhs.name == field_names([field]):
+            return exp.rhs
     return None
 
 

@@ -115,6 +115,12 @@ This leverage backrefs of Peewee to build connections between objects. For examp
 
 Update the object. Permission control is enforced
 
+## Logging
+
+To enable logging, set `LOGLEVEL` variable to `DEBUG`
+
+> export LOGLEVE=DEBUG
+
 ## See it in ACTION!
 
 Here is a demo page with sample data from https://www.mysqltutorial.org/mysql-sample-database.aspx.
