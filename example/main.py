@@ -1,13 +1,16 @@
 import json
+import logging
+import os
 from typing import Annotated, Union
 
-from fastapi import FastAPI, Body, Depends, Request
+import uvicorn
+from fastapi import Body, Depends, FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
-
+from models import BaseModel
 from peewee import ModelSelect
 from starlette.datastructures import QueryParams
-import uvicorn
-from models import BaseModel
+
+logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO").upper())
 
 
 class IndentJSONResponse(JSONResponse):
