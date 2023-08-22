@@ -356,31 +356,6 @@ class Cache:
         return f"{cls.__name__}:{key}:{flat(sub_keys)}"
 
     @classmethod
-    def dumps(cls, data: any) -> str:
-        """Dumps the data to a string so that it can be stored in
-        cache system like Redis.
-
-        Args:
-            data (any): the data to be dumped
-
-        Returns:
-            str: the dumped data
-        """
-        return base64.encodebytes(pickle.dumps(data))
-
-    @classmethod
-    def loads(cls, value: str) -> any:
-        """Loads the data from a string.
-
-        Args:
-            value (str): the string to be loaded
-
-        Returns:
-            any: the loaded data
-        """
-        return pickle.loads(base64.decodebytes(value))
-
-    @classmethod
     def get_cache(
         cls,
         key: str,
@@ -416,11 +391,11 @@ class Cache:
         """
         key = cls.get_key(key, sub_keys)
         if value := cls._store.hget(key, tag):
-            logger.debug(f"Cache HIT {key} {tag} {value[:20]}...")
-            return cls.loads(value)
+            logger.debug(f"Cache HIT {key} {tag} {value[:10]}...")
+            return pickle.loads(value)
 
         data = func(*args, **kwargs)
-        cls._store.hset(key, tag, cls.dumps(data))
+        cls._store.hset(key, tag, pickle.dumps(data))
         logger.debug(f"Cache MISS {key} {tag}")
         return data
 
