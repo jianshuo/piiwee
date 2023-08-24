@@ -10,7 +10,7 @@ from peewee import (
     CompositeKey,
 )
 
-import piiwee
+from piiwee import Model
 
 database = MySQLDatabase(
     "classicmodels",
@@ -28,7 +28,7 @@ class UnknownField(object):
         pass
 
 
-class BaseModel(piiwee.BaseModel):
+class BaseModel(Model):
     class Meta:
         database = database
 

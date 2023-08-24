@@ -6,7 +6,6 @@ permission control, and biuld RESTful API for frontend. This library is
 trying to fill the gap. Refer to example folder for usage.
 """
 import ast
-import base64
 import hashlib
 import logging
 import operator
@@ -16,7 +15,7 @@ from functools import partialmethod, reduce
 from itertools import combinations
 from typing import Dict, List, Union
 
-from peewee import OP, Expression, Field, Model, ModelSelect
+from peewee import OP, Expression, Field, Model as PeeweeModel, ModelSelect
 
 __author__ = "Jianshuo Wang"
 __copyright__ = "Copyright 2023, Baixing.com"
@@ -48,13 +47,13 @@ def operator_name(op: ast.operator) -> str:
     return OP.get(op.__class__.__name__.upper())
 
 
-def expr(exp: Union[ast.AST, Expression, str], model: Model) -> Expression:
+def expr(exp: Union[ast.AST, Expression, str], model: PeeweeModel) -> Expression:
     """Convert an ast expression to a peewee expression
 
     I am surprised that no one actually created this function.
 
     >>> from peewee import CharField, IntegerField
-    >>> class User(BaseModel):
+    >>> class User(Model):
     ...     name = CharField()
     ...     age = IntegerField()
     >>> expr("name == 'John' and age > 18", User)  # doctest: +ELLIPSIS
@@ -136,7 +135,7 @@ def field_eq(
     "=", like "a > 1", then None will be returned.
 
     >>> from peewee import CharField, IntegerField
-    >>> class User(BaseModel):
+    >>> class User(Model):
     ...     name = CharField()
     ...     age = IntegerField()
     >>> field_eq(Expression(User.name, "=", "John"), "name")
@@ -157,7 +156,7 @@ def field_eq(
     if isinstance(exp, Expression):
         if exp.op == "AND":
             return field_eq(exp.lhs, field) or field_eq(exp.rhs, field)
-        if exp.op == "=" and exp.lhs.name == field_names([field]):
+        if exp.op == "=" and exp.lhs.name == field_names([field])[0]:
             return exp.rhs
     return None
 
@@ -169,7 +168,7 @@ def field_names(fields: List[Union[Field, str]]) -> List[str]:
     ['a', 'b']
 
     >>> from peewee import CharField, IntegerField
-    >>> class User(BaseModel):
+    >>> class User(Model):
     ...     name = CharField()
     ...     age = IntegerField()
     >>> field_names([User.name, User.age])
@@ -460,7 +459,7 @@ class CachedModelSelect(ModelSelect, Cache):
     order_by = partialmethod(_call, "order_by")
 
 
-class CachedModel(Model, Cache):
+class CachedModel(PeeweeModel, Cache):
     @classmethod
     def get_by_id(cls, id: int):
         """Get the model by id with cache enabled."""
@@ -521,7 +520,7 @@ class CachedModel(Model, Cache):
         return CachedModelSelect(cls, fields)
 
 
-class PermissionedModel(Model):
+class PermissionedModel(PeeweeModel):
     """A Model with permission control. It is used to control the
     permission of the model, and the fields of the model.
 
@@ -538,13 +537,13 @@ class PermissionedModel(Model):
 
     The model permission is defined as "permission" in Meta class.
 
-    class User(BaseModel):
+    class User(Model):
         class Meta:
             permission = 0o606
 
     The field permission is defined as "_hidden" in Field class:
 
-    class User(BaseModel):
+    class User(Model):
         name = CharField(max_length=100, _hidden=0o604)
         mobile = CharField(max_length=100, _hidden=0o600)
         role = CharField(max_length=100, _hidden=0o404)
@@ -595,7 +594,7 @@ class PermissionedModel(Model):
                 to read/write.
 
         >>> from peewee import CharField
-        >>> class User(BaseModel):
+        >>> class User(Model):
         ...     name = CharField(max_length=100, _hidden=0o604)
         ...     mobile = CharField(max_length=100, _hidden=0o600)
         ...     role = CharField(max_length=100, _hidden=0o404)
@@ -621,7 +620,7 @@ class PermissionedModel(Model):
             Dict[Field, int]: a dict of fields and their permission
 
         >>> from peewee import CharField
-        >>> class User(BaseModel):
+        >>> class User(Model):
         ...     name = CharField(max_length=100, _hidden=0o604)
         ...     mobile = CharField(max_length=100, _hidden=0o600)
         ...     role = CharField(max_length=100, _hidden=0o404)
@@ -644,7 +643,7 @@ class PermissionedModel(Model):
             _type_: the permission of the field
 
         >>> from peewee import CharField
-        >>> class User(BaseModel):
+        >>> class User(Model):
         ...     name = CharField(max_length=100, _hidden=0o604)
         ...     mobile = CharField(max_length=100, _hidden=0o600)
         ...     role = CharField(max_length=100, _hidden=0o404)
@@ -663,7 +662,7 @@ class PermissionedModel(Model):
         """Returns the permission of the model.
 
         >>> from peewee import CharField
-        >>> class User(BaseModel):
+        >>> class User(Model):
         ...     class Meta:
         ...         permission = 0o604
         >>> oct(User().model_perm())
@@ -680,6 +679,14 @@ class PermissionedModel(Model):
 
         Returns:
             List[Field]: a list of readable fields for the current user
+
+        >>> from peewee import CharField, IntegerField
+        >>> class User(Model):
+        ...     name = CharField(max_length=100, _hidden=0o604)
+        ...     age = IntegerField(_hidden=0o600)
+        >>> user = User(name="John", age=18)
+        >>> user.readable_fields(user_id=3)
+        [<AutoField: User.id>, <CharField: User.name>]
         """
         return self.fields(0o444, self.get_role(user_id))
 
@@ -691,6 +698,14 @@ class PermissionedModel(Model):
 
         Returns:
             List[Fields]: a list of writable fields for the current user
+
+        >>> from peewee import CharField, IntegerField
+        >>> class User(Model):
+        ...     name = CharField(max_length=100, _hidden=0o606)
+        ...     age = IntegerField(_hidden=0o600)
+        >>> user = User(name="John", age=18)
+        >>> user.writable_fields(user_id=3)
+        [<CharField: User.name>]
         """
         return self.fields(0o222, self.get_role(user_id))
 
@@ -716,7 +731,7 @@ class PermissionedModel(Model):
 
 
         >>> from peewee import CharField
-        >>> class User(BaseModel):
+        >>> class User(Model):
         ...     name = CharField(max_length=100, _hidden=0o604)
         ...     mobile = CharField(max_length=100, _hidden=0o600)
         ...     role = CharField(max_length=100, _hidden=0o404)
@@ -765,7 +780,7 @@ class PermissionedModel(Model):
             PermissionedModel: the updated model
 
         >>> from peewee import CharField
-        >>> class User(BaseModel):
+        >>> class User(Model):
         ...     name = CharField(max_length=100, _hidden=0o604)
         ...     mobile = CharField(max_length=100, _hidden=0o600)
         ...     role = CharField(max_length=100, _hidden=0o404)
@@ -776,11 +791,11 @@ class PermissionedModel(Model):
         >>> user.from_dict(props, user_id=0)
         Traceback (most recent call last):
         ...
-        PermissionError: Field name is not writable for user 0
+        PermissionError: Field name is not writable for user 0 (role 0o7)
         >>> user.from_dict(props, user_id=1)
         Traceback (most recent call last):
         ...
-        PermissionError: Field name is not writable for user 1
+        PermissionError: Field name is not writable for user 1 (role 0o7)
 
         """
         for key, value in items.items():
@@ -794,7 +809,7 @@ class PermissionedModel(Model):
         return self
 
 
-class BaseModel(PermissionedModel, CachedModel, Model):
+class Model(PermissionedModel, CachedModel, PeeweeModel):
     """The final model that is used in the application. It is a
     combination of PermissionedModel and CachedModel.
 
